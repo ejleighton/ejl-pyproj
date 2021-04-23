@@ -5,11 +5,35 @@ import matplotlib.pyplot as plt
 import rasterio as rio
 import rasterio.mask
 from cartopy.feature import ShapelyFeature
+from rasterio.windows import from_bounds  # thanks https://gis.stackexchange.com/a/336903 for pointing this function out!
 
 # --------------------------------[ FUNCTIONS ]--------------------------------------
 
+def band_clip(filepath):
+    '''
+    Returns a windowed raster from the given path. Assumes a single band.
+
+        Parameters:
+            filepath (str): the path and filename for the input raster
+
+        Returns:
+            raster dataset windowed to the polygon boundaries
+    '''
+    with rio.open(filepath) as img:
+        output = img.read(window=from_bounds(xmin,ymin,xmax,ymax,img.transform))
+    return output
+
 def calc_ndvi(nir,red):
-    '''Calculate NDVI from integer arrays'''
+    '''
+    Returns NDVI from two integer arrays
+
+        Parameters:
+            nir (array): near infra-red band raster as an integer array
+            red (array): red band raster as an integer array
+
+        Returns:
+            ndvi (array): NDVI calculated raster as a floating point array
+    '''
     nir = nir.astype('float32')
     red = red.astype('float32')
     ndvi = np.where(
@@ -21,31 +45,29 @@ def calc_ndvi(nir,red):
 
 # --------------------------------[ DATASETS ]--------------------------------------
 
-# load Landsat data
+# Get CRS from first Landsat image
 with rio.open('data_files\\LT05_L1TP_182024_19910513_20180225_01_T1_B3.TIF') as img:
-    img1red = img.read()  # image 1 visible red
-    print(img.crs)
-    rastcrs = img.crs  # take crs from the image for use with polygons
-    xmin, ymin, xmax, ymax = img.bounds # taking image bounds from landsat image,
-    # need to figure out how to make a window/subset using polygon bounds
+    rastcrs = img.crs  # save the Landsat image CRS as a variable
 
-with rio.open('data_files\\LT05_L1TP_182024_19910513_20180225_01_T1_B4.TIF') as img:
-    img1nir = img.read()  # image 1 nir
-
-with rio.open('data_files\\LT05_L1TP_182024_19860531_20170217_01_T1_B3.TIF') as img:
-    img2red = img.read()  # image 2 visible red
-
-with rio.open('data_files\\LT05_L1TP_182024_19860531_20170217_01_T1_B4.TIF') as img:
-    img2nir = img.read()  # image 2 nir
-
-# load the polygon and set crs to same as the Landsat data
+# load the polygon and set CRS to same as the Landsat data
 outline = gpd.read_file('data_files\\ExclusionZone.shp').to_crs(rastcrs)
+
+# taking image bounds from polygon
+xmin, ymin, xmax, ymax = outline.total_bounds
+
+
+# load Landsat data
+img1red = band_clip('data_files\\LT05_L1TP_182024_19910513_20180225_01_T1_B3.TIF')  # image 1 visible red
+img1nir = band_clip('data_files\\LT05_L1TP_182024_19910513_20180225_01_T1_B4.TIF')  # image 1 nir
+img2red = band_clip('data_files\\LT05_L1TP_182024_19860531_20170217_01_T1_B3.TIF')  # image 2 visible red
+img2nir = band_clip('data_files\\LT05_L1TP_182024_19860531_20170217_01_T1_B4.TIF')  # image 2 nir
+
 
 # --------------------------------[ BAND MATHS ]--------------------------------------
 
 ndvi1 = calc_ndvi(img1nir,img1red)
 ndvi2 = calc_ndvi(img2nir,img2red)
-# ndvidiff = (ndvi1-ndvi2)
+ndvidiff = (ndvi1-ndvi2)
 
 # --------------------------------[ PLOTTING ]--------------------------------------
 
@@ -56,7 +78,7 @@ ax = plt.axes(projection=myCRS)
 ax.set_extent([xmin, xmax, ymin, ymax], crs=myCRS)
 
 # display raster
-ax.imshow(ndvi2[0], cmap='viridis', vmin=0, vmax=1, transform=myCRS, extent=[xmin, xmax, ymin, ymax])
+ax.imshow(ndvidiff[0], cmap='viridis', vmin=-1, vmax=1, transform=myCRS, extent=[xmin, xmax, ymin, ymax])
 
 # display poly
 outline_disp = ShapelyFeature(outline['geometry'], myCRS, edgecolor='r', facecolor='none', linewidth=3.0)
