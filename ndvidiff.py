@@ -78,7 +78,7 @@ ax = plt.axes(projection=myCRS)
 ax.set_extent([xmin, xmax, ymin, ymax], crs=myCRS)
 
 # display raster
-ax.imshow(ndvidiff[0], cmap='viridis', vmin=-1, vmax=1, transform=myCRS, extent=[xmin, xmax, ymin, ymax])
+ax.imshow(ndvidiff[0], cmap='PiYG', vmin=-1, vmax=1, transform=myCRS, extent=[xmin, xmax, ymin, ymax])
 
 # display poly
 outline_disp = ShapelyFeature(outline['geometry'], myCRS, edgecolor='r', facecolor='none', linewidth=3.0)
