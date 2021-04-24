@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import rasterio as rio
 from cartopy.feature import ShapelyFeature
 from rasterio.windows import from_bounds  # thanks https://gis.stackexchange.com/a/336903 for pointing this function out
+from myconfig import *
 
 
 # --------------------------------[ FUNCTIONS ]--------------------------------------
@@ -62,13 +63,6 @@ def calc_ndvi(nir, red):
 
 
 # --------------------------------[ DATASETS ]--------------------------------------
-
-# set dataset file paths
-newRed = 'data_files\\LT05_L1TP_182024_19910513_20180225_01_T1_B3.TIF'  # image 1 visible red
-newNIR = 'data_files\\LT05_L1TP_182024_19910513_20180225_01_T1_B4.TIF'  # image 1 nir
-oldRed = 'data_files\\LT05_L1TP_182024_19860531_20170217_01_T1_B3.TIF'  # image 2 visible red
-oldNIR = 'data_files\\LT05_L1TP_182024_19860531_20170217_01_T1_B4.TIF'  # image 2 nir
-shapefile = 'data_files\\ExclusionZone.shp'  # shapefile of study area
 
 # load the polygon and set CRS to same as the Landsat data
 outline = get_outline(newRed, shapefile)
