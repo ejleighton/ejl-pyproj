@@ -3,28 +3,45 @@ import geopandas as gpd
 import cartopy.crs as ccrs
 import matplotlib.pyplot as plt
 import rasterio as rio
-import rasterio.mask
 from cartopy.feature import ShapelyFeature
-from rasterio.windows import from_bounds  # thanks https://gis.stackexchange.com/a/336903 for pointing this function out!
+from rasterio.windows import from_bounds  # thanks https://gis.stackexchange.com/a/336903 for pointing this function out
+
 
 # --------------------------------[ FUNCTIONS ]--------------------------------------
 
+def get_outline(crs_src, poly):
+    """
+    Returns polygon feature with CRS from a source raster.
+
+        Parameters:
+            crs_src (str): path and filename for the CRS source raster
+            poly: path and filename for the shapefile
+
+        Returns:
+            output: polygon feature set to source CRS
+    """
+    with rio.open(crs_src) as src:
+        output = gpd.read_file(poly).to_crs(src.crs)
+    return output
+
+
 def band_clip(filepath):
-    '''
+    """
     Returns a windowed raster from the given path. Assumes a single band.
 
         Parameters:
             filepath (str): the path and filename for the input raster
 
         Returns:
-            raster dataset windowed to the polygon boundaries
-    '''
-    with rio.open(filepath) as img:
-        output = img.read(window=from_bounds(xmin,ymin,xmax,ymax,img.transform))
+            output (array): raster dataset windowed to the polygon boundaries
+    """
+    with rio.open(filepath) as src:
+        output = src.read(window=from_bounds(xmin, ymin, xmax, ymax, src.transform))
     return output
 
-def calc_ndvi(nir,red):
-    '''
+
+def calc_ndvi(nir, red):
+    """
     Returns NDVI from two integer arrays
 
         Parameters:
@@ -33,47 +50,51 @@ def calc_ndvi(nir,red):
 
         Returns:
             ndvi (array): NDVI calculated raster as a floating point array
-    '''
+    """
     nir = nir.astype('float32')
     red = red.astype('float32')
     ndvi = np.where(
         (nir+red) == 0.,
         0,
         (nir - red) / (nir + red)
-    )  # note this operation will trigger divide by zero errors, but the function will complete
+    )
     return ndvi
+
 
 # --------------------------------[ DATASETS ]--------------------------------------
 
-# Get CRS from first Landsat image
-with rio.open('data_files\\LT05_L1TP_182024_19910513_20180225_01_T1_B3.TIF') as img:
-    rastcrs = img.crs  # save the Landsat image CRS as a variable
+# set dataset file paths
+newRed = 'data_files\\LT05_L1TP_182024_19910513_20180225_01_T1_B3.TIF'  # image 1 visible red
+newNIR = 'data_files\\LT05_L1TP_182024_19910513_20180225_01_T1_B4.TIF'  # image 1 nir
+oldRed = 'data_files\\LT05_L1TP_182024_19860531_20170217_01_T1_B3.TIF'  # image 2 visible red
+oldNIR = 'data_files\\LT05_L1TP_182024_19860531_20170217_01_T1_B4.TIF'  # image 2 nir
+shapefile = 'data_files\\ExclusionZone.shp'  # shapefile of study area
 
 # load the polygon and set CRS to same as the Landsat data
-outline = gpd.read_file('data_files\\ExclusionZone.shp').to_crs(rastcrs)
+outline = get_outline(newRed, shapefile)
 
-# taking image bounds from polygon
+# take image bounds from polygon
 xmin, ymin, xmax, ymax = outline.total_bounds
 
-
-# load Landsat data
-img1red = band_clip('data_files\\LT05_L1TP_182024_19910513_20180225_01_T1_B3.TIF')  # image 1 visible red
-img1nir = band_clip('data_files\\LT05_L1TP_182024_19910513_20180225_01_T1_B4.TIF')  # image 1 nir
-img2red = band_clip('data_files\\LT05_L1TP_182024_19860531_20170217_01_T1_B3.TIF')  # image 2 visible red
-img2nir = band_clip('data_files\\LT05_L1TP_182024_19860531_20170217_01_T1_B4.TIF')  # image 2 nir
+# load and clip Landsat data
+img1red = band_clip(newRed)
+img1nir = band_clip(newNIR)
+img2red = band_clip(oldRed)
+img2nir = band_clip(oldNIR)
 
 
 # --------------------------------[ BAND MATHS ]--------------------------------------
 
-ndvi1 = calc_ndvi(img1nir,img1red)
-ndvi2 = calc_ndvi(img2nir,img2red)
+ndvi1 = calc_ndvi(img1nir, img1red)
+ndvi2 = calc_ndvi(img2nir, img2red)
 ndvidiff = (ndvi1-ndvi2)
+
 
 # --------------------------------[ PLOTTING ]--------------------------------------
 
 # create figure and axes
 myCRS = ccrs.Mercator()
-fig = plt.figure(figsize=(10, 10))
+fig = plt.figure(figsize=(20, 20))
 ax = plt.axes(projection=myCRS)
 ax.set_extent([xmin, xmax, ymin, ymax], crs=myCRS)
 
@@ -93,4 +114,4 @@ gridlines.bottom_labels = False
 plt.show()
 
 # save the plot
-fig.savefig('test.png', dpi=300, bbox_inches='tight')
+# fig.savefig('test.png', dpi=300, bbox_inches='tight')
