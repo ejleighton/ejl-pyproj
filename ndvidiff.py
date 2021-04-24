@@ -72,7 +72,7 @@ ndvidiff = (ndvi1-ndvi2)
 # --------------------------------[ PLOTTING ]--------------------------------------
 
 # create figure and axes
-myCRS = ccrs.UTM(35)
+myCRS = ccrs.Mercator()
 fig = plt.figure(figsize=(10, 10))
 ax = plt.axes(projection=myCRS)
 ax.set_extent([xmin, xmax, ymin, ymax], crs=myCRS)
