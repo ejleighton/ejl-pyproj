@@ -3,6 +3,7 @@ import geopandas as gpd
 import cartopy.crs as ccrs
 import matplotlib.pyplot as plt
 import rasterio as rio
+import rasterio.mask as rmask
 from mpl_toolkits.axes_grid1 import make_axes_locatable  # for arranging multiple plots, i.e. colorbar axes
 from cartopy.feature import ShapelyFeature
 from rasterio.windows import from_bounds  # thanks https://gis.stackexchange.com/a/336903 for pointing this function out
@@ -53,19 +54,30 @@ def getextent(poly):
     # this is purely for aesthetics preventing the polygon from being right next to the axes edge
 
 
-def band_clip(filepath):
+def band_clip(filepath, outpath):
     """
     Returns a windowed raster from the given path. Assumes a single band.
+    Creates a Geotiff of the resulting image with updated metadata.
 
         Parameters:
             filepath (str): the path and filename for the input raster
+            outpath (str): the path and filename for the output image
 
         Returns:
             output (array): raster dataset windowed to the polygon boundaries
     """
     with rio.open(filepath) as src:
-        output = src.read(window=from_bounds(xmin, ymin, xmax, ymax, src.transform))
-    return output
+        win = from_bounds(xmin, ymin, xmax, ymax, src.transform)
+        out_img = src.read(window=win)
+        out_transform = src.window_transform(win)
+        out_meta = src.meta
+    out_meta.update({"driver": "GTiff",
+                     "height": out_img.shape[1],
+                     "width": out_img.shape[2],
+                     "transform": out_transform})
+    with rio.open(outpath, "w", **out_meta) as dest:
+        dest.write(out_img)
+    return out_img
 
 
 def calc_ndvi(nir, red):
@@ -89,6 +101,31 @@ def calc_ndvi(nir, red):
     return ndvi
 
 
+def ndvidiff(new, old, outpath):
+    """
+    Returns a difference raster from the two input rasters.
+    Creates a GeoTiff of the output
+
+        Parameters:
+            new (array): more recent ndvi image as floating point array
+            old (array): older ndvi image as floating point array
+            outpath (str): the path and filename for the output image
+
+        Returns:
+            diff (array): raster created subtracting the older image from the new
+    """
+    diff = (new - old)
+    with rio.open('output\\img1red.tif') as src:
+        out_meta = src.meta
+    out_meta.update({"driver": "GTiff",
+                     "height": diff.shape[1],
+                     "width": diff.shape[2],
+                     "dtype": "float32"})
+    with rio.open(outpath, "w", **out_meta) as dest:
+        dest.write(diff)
+    return diff
+
+
 # --------------------------------[ DATASETS ]--------------------------------------
 
 # load the polygon and set CRS to same as the Landsat data
@@ -97,30 +134,29 @@ outline = get_outline(newRed, shapefile)
 # take image bounds from polygon
 xmin, ymin, xmax, ymax = getextent(outline)
 
-# load and clip Landsat data
-img1red = band_clip(newRed)
-img1nir = band_clip(newNIR)
-img2red = band_clip(oldRed)
-img2nir = band_clip(oldNIR)
+# load and clip Landsat data, saves as GeoTiff
+img1red = band_clip(newRed, 'output\\img1red.tif')
+img1nir = band_clip(newNIR, 'output\\img1nir.tif')
+img2red = band_clip(oldRed, 'output\\img2red.tif')
+img2nir = band_clip(oldNIR, 'output\\img2nir.tif')
 
 
 # --------------------------------[ BAND MATHS ]--------------------------------------
 
 ndvi1 = calc_ndvi(img1nir, img1red)
 ndvi2 = calc_ndvi(img2nir, img2red)
-ndvidiff = (ndvi1-ndvi2)
-
+diffimg = ndvidiff(ndvi1, ndvi2, 'output\\ndvidiff.tif')
 
 # --------------------------------[ PLOTTING ]--------------------------------------
 
 # create figure and axes
-myCRS = ccrs.Mercator
+myCRS = ccrs.Mercator()
 fig = plt.figure(figsize=(15, 15))
 ax = plt.axes(projection=myCRS)
 ax.set_extent([xmin, xmax, ymin, ymax], crs=myCRS)
 
 # display raster
-im = ax.imshow(ndvidiff[0], cmap='PiYG', vmin=-1, vmax=1, transform=myCRS, extent=[xmin, xmax, ymin, ymax])
+im = ax.imshow(diffimg[0], cmap='RdYlBu', vmin=-1, vmax=1, transform=myCRS, extent=[xmin, xmax, ymin, ymax])
 
 # display poly
 outline_disp = ShapelyFeature(outline['geometry'], myCRS, edgecolor='r', facecolor='none', linewidth=3.0)
@@ -133,7 +169,7 @@ gridlines.bottom_labels = False
 
 # create axes for colorbar plot
 divider = make_axes_locatable(ax)
-cax = divider.append_axes("right", size="5%", pad=0.1, axes_class=plt.Axes)
+cax = divider.append_axes("right", size="2.5%", pad=0.1, axes_class=plt.Axes)
 
 plt.colorbar(im, cax)
 
@@ -141,4 +177,4 @@ plt.colorbar(im, cax)
 plt.show()
 
 # save the plot
-# fig.savefig('test.png', dpi=300, bbox_inches='tight')
+fig.savefig('output\\test.png', dpi=300, bbox_inches='tight')
