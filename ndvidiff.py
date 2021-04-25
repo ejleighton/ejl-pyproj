@@ -27,6 +27,32 @@ def get_outline(crs_src, poly):
     return output
 
 
+def getextent(poly):
+    """
+    Returns variables for extent of image from polygon bounds
+    Grows extent by 1%
+
+    Parameters:
+        poly: path and filename of shapefile
+
+    Returns:
+        minx, miny, maxx, maxy: min and max extent of polygon increased by 1% each direction
+    """
+    # takes bounds from the polygon
+    minx, miny, maxx, maxy = outline.total_bounds
+    # calculates 1% of the bounding box
+    deltax = ((maxx - minx) / 100)
+    deltay = ((maxy - miny) / 100)
+    # increases the minimum and maximum extent by the calculated amount
+    minx = (minx - deltax)
+    miny = (miny - deltay)
+    maxx = (maxx + deltax)
+    maxy = (maxy + deltay)
+    # returns the results to the variables
+    return minx, miny, maxx, maxy
+    # this is purely for aesthetics preventing the polygon from being right next to the axes edge
+
+
 def band_clip(filepath):
     """
     Returns a windowed raster from the given path. Assumes a single band.
@@ -69,7 +95,7 @@ def calc_ndvi(nir, red):
 outline = get_outline(newRed, shapefile)
 
 # take image bounds from polygon
-xmin, ymin, xmax, ymax = outline.total_bounds
+xmin, ymin, xmax, ymax = getextent(outline)
 
 # load and clip Landsat data
 img1red = band_clip(newRed)
@@ -88,7 +114,7 @@ ndvidiff = (ndvi1-ndvi2)
 # --------------------------------[ PLOTTING ]--------------------------------------
 
 # create figure and axes
-myCRS = ccrs.Mercator()
+myCRS = ccrs.Mercator
 fig = plt.figure(figsize=(15, 15))
 ax = plt.axes(projection=myCRS)
 ax.set_extent([xmin, xmax, ymin, ymax], crs=myCRS)
