@@ -3,6 +3,7 @@ import geopandas as gpd
 import cartopy.crs as ccrs
 import matplotlib.pyplot as plt
 import rasterio as rio
+from mpl_toolkits.axes_grid1 import make_axes_locatable  # for arranging multiple plots, i.e. colorbar axes
 from cartopy.feature import ShapelyFeature
 from rasterio.windows import from_bounds  # thanks https://gis.stackexchange.com/a/336903 for pointing this function out
 from myconfig import *  # imports variables from configuration file (per https://stackoverflow.com/a/924866)
@@ -88,12 +89,12 @@ ndvidiff = (ndvi1-ndvi2)
 
 # create figure and axes
 myCRS = ccrs.Mercator()
-fig = plt.figure(figsize=(20, 20))
+fig = plt.figure(figsize=(15, 15))
 ax = plt.axes(projection=myCRS)
 ax.set_extent([xmin, xmax, ymin, ymax], crs=myCRS)
 
 # display raster
-ax.imshow(ndvidiff[0], cmap='PiYG', vmin=-1, vmax=1, transform=myCRS, extent=[xmin, xmax, ymin, ymax])
+im = ax.imshow(ndvidiff[0], cmap='PiYG', vmin=-1, vmax=1, transform=myCRS, extent=[xmin, xmax, ymin, ymax])
 
 # display poly
 outline_disp = ShapelyFeature(outline['geometry'], myCRS, edgecolor='r', facecolor='none', linewidth=3.0)
@@ -103,6 +104,12 @@ ax.add_feature(outline_disp)
 gridlines = ax.gridlines(draw_labels=True)
 gridlines.right_labels = False
 gridlines.bottom_labels = False
+
+# create axes for colorbar plot
+divider = make_axes_locatable(ax)
+cax = divider.append_axes("right", size="5%", pad=0.1, axes_class=plt.Axes)
+
+plt.colorbar(im, cax)
 
 # show the plot
 plt.show()
