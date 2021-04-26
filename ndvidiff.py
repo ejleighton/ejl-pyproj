@@ -158,21 +158,21 @@ masked_diff = np.ma.masked_where(masked_diff == -9999, masked_diff)
 # --------------------------------[ PLOTTING ]--------------------------------------
 
 # create figure and axes
-myCRS = ccrs.UTM(35)
+myCRS = ccrs.UTM(outline.crs.utm_zone)
 fig = plt.figure(figsize=(15, 10))
 ax = plt.axes(projection=myCRS)
 ax.set_extent([xmin, xmax, ymin, ymax], crs=myCRS)
-plt.title('NDVI Difference')
+plt.title(label=maptitle)
 
 # create colormap setting alpha for masked values
-cmap = plt.cm.get_cmap("RdYlBu").copy()
-cmap.set_bad('k', alpha=0)
+mycmap = plt.cm.get_cmap("RdYlBu").copy()
+mycmap.set_bad('k', alpha=0)
 
-# ax.stock_img()  # displays a (very) low res natural earth background, but slows the plotting significantly
+ax.stock_img()  # displays a (very) low res natural earth background, but slows the plotting significantly
 
 # display raster
 
-im = ax.imshow(masked_diff[0], cmap=cmap, vmin=-0.5, vmax=0.5, transform=myCRS, extent=[xmin, xmax, ymin, ymax])
+im = ax.imshow(masked_diff[0], cmap=mycmap, vmin=-0.5, vmax=0.5, transform=myCRS, extent=[xmin, xmax, ymin, ymax])
 
 # display poly
 outline_disp = ShapelyFeature(outline['geometry'], myCRS, edgecolor='r', facecolor='none', linewidth=3.0)
@@ -189,9 +189,8 @@ cax = divider.append_axes("right", size="2.5%", pad=0.1, axes_class=plt.Axes)
 
 plt.colorbar(im, cax)
 
-
 # show the plot
 plt.show()
 
 # save the plot
-# fig.savefig('output\\test.png', dpi=300, bbox_inches='tight')
+fig.savefig('output\\test.png', dpi=300, bbox_inches='tight')
