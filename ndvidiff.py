@@ -40,7 +40,7 @@ def getextent(poly):
         minx, miny, maxx, maxy: min and max extent of polygon increased by 1% each direction
     """
     # takes bounds from the polygon
-    minx, miny, maxx, maxy = outline.total_bounds
+    minx, miny, maxx, maxy = poly.total_bounds
     # calculates 1% of the bounding box
     deltax = ((maxx - minx) / 100)
     deltay = ((maxy - miny) / 100)
@@ -162,6 +162,9 @@ myCRS = ccrs.UTM(35)
 fig = plt.figure(figsize=(15, 10))
 ax = plt.axes(projection=myCRS)
 ax.set_extent([xmin, xmax, ymin, ymax], crs=myCRS)
+plt.title('NDVI Difference')
+
+# create colormap setting alpha for masked values
 cmap = plt.cm.get_cmap("RdYlBu").copy()
 cmap.set_bad('k', alpha=0)
 
@@ -185,6 +188,7 @@ divider = make_axes_locatable(ax)
 cax = divider.append_axes("right", size="2.5%", pad=0.1, axes_class=plt.Axes)
 
 plt.colorbar(im, cax)
+
 
 # show the plot
 plt.show()
