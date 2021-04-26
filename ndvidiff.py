@@ -147,16 +147,29 @@ ndvi1 = calc_ndvi(img1nir, img1red)
 ndvi2 = calc_ndvi(img2nir, img2red)
 diffimg = ndvidiff(ndvi1, ndvi2, 'output\\ndvidiff.tif')
 
+# create masked copy of the NDVI difference layer
+with rio.open('output\\ndvidiff.tif') as img:
+    # set any pixel outside the 'outline' polygon to a value of -9999
+    masked_diff, mask_transform = rmask.mask(img, outline.geometry, nodata=-9999)
+# create a masked array with numpy setting -9999 as a 'bad' or out-of-range value
+masked_diff = np.ma.masked_where(masked_diff == -9999, masked_diff)
+
+
 # --------------------------------[ PLOTTING ]--------------------------------------
 
 # create figure and axes
-myCRS = ccrs.Mercator()
-fig = plt.figure(figsize=(15, 15))
+myCRS = ccrs.UTM(35)
+fig = plt.figure(figsize=(15, 10))
 ax = plt.axes(projection=myCRS)
 ax.set_extent([xmin, xmax, ymin, ymax], crs=myCRS)
+cmap = plt.cm.get_cmap("RdYlBu").copy()
+cmap.set_bad('k', alpha=0)
+
+# ax.stock_img()  # displays a (very) low res natural earth background, but slows the plotting significantly
 
 # display raster
-im = ax.imshow(diffimg[0], cmap='RdYlBu', vmin=-1, vmax=1, transform=myCRS, extent=[xmin, xmax, ymin, ymax])
+
+im = ax.imshow(masked_diff[0], cmap=cmap, vmin=-0.5, vmax=0.5, transform=myCRS, extent=[xmin, xmax, ymin, ymax])
 
 # display poly
 outline_disp = ShapelyFeature(outline['geometry'], myCRS, edgecolor='r', facecolor='none', linewidth=3.0)
@@ -177,4 +190,4 @@ plt.colorbar(im, cax)
 plt.show()
 
 # save the plot
-fig.savefig('output\\test.png', dpi=300, bbox_inches='tight')
+# fig.savefig('output\\test.png', dpi=300, bbox_inches='tight')
