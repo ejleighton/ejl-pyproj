@@ -198,8 +198,8 @@ img1nir = band_clip(newNIR, 'output\\img1nir.tif')
 img2red = band_clip(oldRed, 'output\\img2red.tif')
 img2nir = band_clip(oldNIR, 'output\\img2nir.tif')
 
-outlinearea = getarea(outline)
-print('Study area size: {:.2f} km²'.format(outlinearea[0]))
+outlinearea = getarea(outline).sum()
+print('Study area size: {:.2f} km²'.format(outlinearea))
 print('Study area size (UTM): {:.2f} km²'.format(outline.area[0]/1000000))
 
 # --------------------------------[ BAND MATHS ]--------------------------------------
@@ -231,18 +231,18 @@ print('Area of negative change: {:.2f} km²'.format(neg_change_area))
 
 # calculate fig size using aspect ratio of inputs
 figaspect = (o_width / o_height)
-figmax = 15
+figmax = 12
 if o_width > o_height:
     figwidth, figheight = figmax, (figmax / figaspect)
 else:
-    figwidth, figheight = (figmax * figaspect), figmax
+    figwidth, figheight = (figmax * figaspect) + 1, figmax
 
 # create figure and axes
 myCRS = ccrs.UTM(outline.crs.utm_zone)
 fig = plt.figure(figsize=(figwidth, figheight))
 ax = plt.axes(projection=myCRS)
 ax.set_extent([xmin, xmax, ymin, ymax], crs=myCRS)
-plt.title(label=maptitle)
+plt.title(label=maptitle, size=20, pad=20)
 
 # create colormap setting alpha for masked values
 mycmap = plt.cm.get_cmap("RdYlBu").copy()
@@ -274,6 +274,14 @@ divider = make_axes_locatable(ax)
 cax = divider.append_axes("right", size="2.5%", pad=0.1, axes_class=plt.Axes)
 
 plt.colorbar(im, cax)
+
+plt.figtext(0.1, 0.01, 'Study area size: {:.2f} km²\n'
+                       'Area of positive change: {:.2f} km²\n'
+                       'Area of negative change: {:.2f} km²'
+            .format(outlinearea, pos_change_area, neg_change_area),
+            size=16)
+
+plt.subplots_adjust(bottom=0.15)
 
 # show the plot
 plt.show()
