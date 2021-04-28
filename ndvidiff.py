@@ -51,7 +51,7 @@ def getextent(poly):
     maxx = (maxx + deltax)
     maxy = (maxy + deltay)
     # returns the results to the variables
-    return minx, miny, maxx, maxy
+    return minx, miny, maxx, maxy, deltax, deltay
     # this is purely for aesthetics preventing the polygon from being right next to the axes edge
 
 
@@ -190,7 +190,7 @@ def getarea(poly):
 outline = get_outline(newRed, shapefile)
 
 # take image bounds from polygon
-xmin, ymin, xmax, ymax = getextent(outline)
+xmin, ymin, xmax, ymax, o_width, o_height = getextent(outline)
 
 # load and clip Landsat data, saves as GeoTiff
 img1red = band_clip(newRed, 'output\\img1red.tif')
@@ -229,9 +229,17 @@ print('Area of negative change: {:.2f} km²'.format(neg_change_area))
 
 # --------------------------------[ PLOTTING ]--------------------------------------
 
+# calculate fig size using aspect ratio of inputs
+figaspect = (o_width / o_height)
+figmax = 15
+if o_width > o_height:
+    figwidth, figheight = figmax, (figmax / figaspect)
+else:
+    figwidth, figheight = (figmax * figaspect), figmax
+
 # create figure and axes
 myCRS = ccrs.UTM(outline.crs.utm_zone)
-fig = plt.figure(figsize=(15, 10))
+fig = plt.figure(figsize=(figwidth, figheight))
 ax = plt.axes(projection=myCRS)
 ax.set_extent([xmin, xmax, ymin, ymax], crs=myCRS)
 plt.title(label=maptitle)
