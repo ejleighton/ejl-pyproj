@@ -14,15 +14,11 @@ from myconfig import *  # imports variables from configuration file (per https:/
 # --------------------------------[ FUNCTIONS ]--------------------------------------
 
 def get_outline(crs_src, poly):
-    """
-    Returns polygon feature with CRS from a source raster.
+    """Returns polygon feature with CRS from a source raster.
 
-        Parameters:
-            crs_src (str): path and filename for the CRS source raster
-            poly: path and filename for the shapefile
-
-        Returns:
-            output: polygon feature set to source CRS
+    :param crs_src: (str) path and filename for the CRS source raster
+    :param poly: (str) path and filename for the shapefile
+    :return: polygon feature set to source CRS
     """
     with rio.open(crs_src) as src:
         output = gpd.read_file(poly).to_crs(src.crs)
@@ -30,15 +26,12 @@ def get_outline(crs_src, poly):
 
 
 def getextent(poly):
-    """
-    Returns variables for extent of image from polygon bounds
+    """Returns variables for extent of image from polygon bounds
     Grows extent by 1%
 
-    Parameters:
-        poly: path and filename of shapefile
-
-    Returns:
-        minx, miny, maxx, maxy: min and max extent of polygon increased by 1% each direction
+    :param poly: (str) path and filename of shapefile
+    :return: minx, miny, maxx, maxy: min and max extent of polygon increased by 1% each direction
+        deltax, deltay: width and height of the source polygon bounding box
     """
     # takes bounds from the polygon
     minx, miny, maxx, maxy = poly.total_bounds
@@ -56,16 +49,12 @@ def getextent(poly):
 
 
 def band_clip(filepath, outpath):
-    """
-    Returns a windowed raster from the given path. Assumes a single band.
+    """Returns a windowed raster from the given path. Assumes a single band.
     Creates a Geotiff of the resulting image with updated metadata.
 
-        Parameters:
-            filepath (str): the path and filename for the input raster
-            outpath (str): the path and filename for the output image
-
-        Returns:
-            output (array): raster dataset windowed to the polygon boundaries
+    :param filepath: (str) the path and filename for the input raster
+    :param outpath: (str) the path and filename for the output image
+    :return: output: (array) raster dataset windowed to the polygon boundaries
     """
     with rio.open(filepath) as src:
         win = from_bounds(xmin, ymin, xmax, ymax, src.transform)
@@ -82,15 +71,11 @@ def band_clip(filepath, outpath):
 
 
 def calc_ndvi(nir, red):
-    """
-    Returns NDVI from two integer arrays
+    """Returns NDVI from two integer arrays
 
-        Parameters:
-            nir (array): near infra-red band raster as an integer array
-            red (array): red band raster as an integer array
-
-        Returns:
-            ndvi (array): NDVI calculated raster as a floating point array
+    :param nir: (array) near infra-red band raster as an integer array
+    :param red: (array) red band raster as an integer array
+    :return: ndvi (array): NDVI calculated raster as a floating point array
     """
     nir = nir.astype('float32')
     red = red.astype('float32')
@@ -103,17 +88,13 @@ def calc_ndvi(nir, red):
 
 
 def ndvidiff(new, old, outpath):
-    """
-    Returns a difference raster from the two input rasters.
+    """Returns a difference raster from the two input rasters.
     Creates a GeoTiff of the output
 
-        Parameters:
-            new (array): more recent ndvi image as floating point array
-            old (array): older ndvi image as floating point array
-            outpath (str): the path and filename for the output image
-
-        Returns:
-            diff (array): raster created subtracting the older image from the new
+    :param new: (array) more recent ndvi image as floating point array
+    :param old: (array) older ndvi image as floating point array
+    :param outpath: (str): the path and filename for the output image
+    :return: (array): raster created subtracting the older image from the new
     """
     diff = (new - old)
     with rio.open('output\\img1red.tif') as src:
@@ -129,17 +110,13 @@ def ndvidiff(new, old, outpath):
 
 # https://gis.stackexchange.com/a/177675
 def classify_change(srcimg, pos_thold, neg_thold, outpath):
-    """
-    Returns classified image using supplied thresholds
+    """Returns classified image using supplied thresholds
 
-        Parameters:
-             srcimg (str): path to raster to be classified
-             pos_thold (float): value above which pixels will be classed as positive change
-             neg_thold (float): value below which pixels will be classed as negative change
-             outpath (str): path and filename of output GeoTiff
-
-        Returns:
-            classified (array): raster reclassified
+    :param srcimg: (str) path to raster to be classified
+    :param pos_thold: (float) value above which pixels will be classed as positive change
+    :param neg_thold: (float) value below which pixels will be classed as negative change
+    :param outpath: (str) path and filename of output GeoTiff
+    :return: classified (array): raster reclassified
     """
     with rio.open(srcimg) as src:
         array = src.read()
@@ -154,10 +131,10 @@ def classify_change(srcimg, pos_thold, neg_thold, outpath):
 
 # https://gis.stackexchange.com/a/187883
 def getpolygons(srcimg):
-    """
+    """Returns polygons based on unique values in source raster
 
-    :param srcimg:
-    :return:
+    :param srcimg: (str)  path to raster to be polygonised
+    :return: GeoDataFrame of polygons created from the raster
     """
     with rio.Env():
         with rio.open(srcimg) as src:
@@ -174,10 +151,10 @@ def getpolygons(srcimg):
 
 
 def getarea(poly):
-    """
+    """Returns area of polygons in km². Assumes units of source are metres.
 
-    :param poly:
-    :return:
+    :param poly: shapes to be measured
+    :return: area (float): area of each polygon in the source in km²
     """
     geom = poly.to_crs(spatialref)
     area = (geom.area / 1000000)
@@ -198,8 +175,8 @@ img1nir = band_clip(newNIR, 'output\\img1nir.tif')
 img2red = band_clip(oldRed, 'output\\img2red.tif')
 img2nir = band_clip(oldNIR, 'output\\img2nir.tif')
 
-outlinearea = getarea(outline)
-print('Study area size: {:.2f} km²'.format(outlinearea[0]))
+outlinearea = getarea(outline).sum()
+print('Study area size: {:.2f} km²'.format(outlinearea))
 print('Study area size (UTM): {:.2f} km²'.format(outline.area[0]/1000000))
 
 # --------------------------------[ BAND MATHS ]--------------------------------------
@@ -231,18 +208,18 @@ print('Area of negative change: {:.2f} km²'.format(neg_change_area))
 
 # calculate fig size using aspect ratio of inputs
 figaspect = (o_width / o_height)
-figmax = 15
+figmax = 12
 if o_width > o_height:
     figwidth, figheight = figmax, (figmax / figaspect)
 else:
-    figwidth, figheight = (figmax * figaspect), figmax
+    figwidth, figheight = (figmax * figaspect) + 1, figmax
 
 # create figure and axes
 myCRS = ccrs.UTM(outline.crs.utm_zone)
 fig = plt.figure(figsize=(figwidth, figheight))
 ax = plt.axes(projection=myCRS)
 ax.set_extent([xmin, xmax, ymin, ymax], crs=myCRS)
-plt.title(label=maptitle)
+plt.title(label=maptitle, size=20, pad=20)
 
 # create colormap setting alpha for masked values
 mycmap = plt.cm.get_cmap("RdYlBu").copy()
@@ -274,6 +251,14 @@ divider = make_axes_locatable(ax)
 cax = divider.append_axes("right", size="2.5%", pad=0.1, axes_class=plt.Axes)
 
 plt.colorbar(im, cax)
+
+plt.figtext(0.1, 0.01, 'Study area size: {:.2f} km²\n'
+                       'Area of positive change: {:.2f} km²\n'
+                       'Area of negative change: {:.2f} km²'
+            .format(outlinearea, pos_change_area, neg_change_area),
+            size=16)
+
+plt.subplots_adjust(bottom=0.15)
 
 # show the plot
 plt.show()

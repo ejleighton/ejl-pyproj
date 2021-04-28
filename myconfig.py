@@ -9,12 +9,12 @@
 #    oldRed: path and filename for the red band of the older image
 #    oldNIR: path and filename for the NIR band of the older image
 #    shapefile: path and filename for the shapefile containing the study area boundary
-#	 spatialref: spatial reference for analysis in format 'epsg:#####'
+#    spatialref: spatial reference for analysis in format 'epsg:#####'
 
-maptitle = 'Difference in NDVI in the Ukraine CEZ from May 1986 to May 1991'
-newRed = 'data_files\\CEZ\\LT05_L1TP_182024_19910513_20180225_01_T1_B3.TIF'  # image 1 visible red
-newNIR = 'data_files\\CEZ\\LT05_L1TP_182024_19910513_20180225_01_T1_B4.TIF'  # image 1 nir
-oldRed = 'data_files\\CEZ\\LT05_L1TP_182024_19860531_20170217_01_T1_B3.TIF'  # image 2 visible red
-oldNIR = 'data_files\\CEZ\\LT05_L1TP_182024_19860531_20170217_01_T1_B4.TIF'  # image 2 nir
-shapefile = 'data_files\\CEZ\\ExclusionZone.shp'  # shapefile of study area
-spatialref = 'epsg:5577'  # espg for Ukraine 2000 3 Degree GK CM 21E
+maptitle = 'NDVI Difference\nMt. St. Helens National Volcano Monument\nSept 1986 to July 1995'
+newRed = 'data_files\\MSH\\LT05_L1TP_046028_19950718_20160926_01_T1_B3.TIF'  # image 1 visible red
+newNIR = 'data_files\\MSH\\LT05_L1TP_046028_19950718_20160926_01_T1_B4.TIF'  # image 1 nir
+oldRed = 'data_files\\MSH\\LT05_L1TP_046028_19860911_20161003_01_T1_B3.TIF'  # image 2 visible red
+oldNIR = 'data_files\\MSH\\LT05_L1TP_046028_19860911_20161003_01_T1_B4.TIF'  # image 2 nir
+shapefile = 'data_files\\MSH\\MSH_NVM.shp'  # shapefile of study area
+spatialref = 'epsg:7582'  # espg for NAD83(2011) / WISCRS Washington (m)
