@@ -4,11 +4,13 @@ import cartopy.crs as ccrs
 import matplotlib.pyplot as plt
 import rasterio as rio
 import rasterio.mask as rmask
+from skimage.filters import threshold_otsu
 from rasterio.features import shapes
 from mpl_toolkits.axes_grid1 import make_axes_locatable  # for arranging multiple plots, i.e. colorbar axes
 from cartopy.feature import ShapelyFeature
 from rasterio.windows import from_bounds  # thanks https://gis.stackexchange.com/a/336903 for pointing this function out
 from myconfig import *  # imports variables from configuration file (per https://stackoverflow.com/a/924866)
+from pathlib import Path
 
 
 # --------------------------------[ FUNCTIONS ]--------------------------------------
@@ -108,6 +110,23 @@ def ndvidiff(new, old, outpath):
     return diff
 
 
+def get_threshold(srcimg):
+    """Returns thresholds for the NDVI differencing image determined by Otsu's method
+
+    :param srcimg: (str) path and filename of the source image
+    :return: upper and lower thresholds signifying significant increase or decrease in NDVI
+    """
+    with rio.open(srcimg) as src:
+        pos_array = src.read()
+        neg_array = src.read()
+    pos_array[np.where(pos_array < 0.0)] = 0.0
+    neg_array[np.where((neg_array > 0.0) | (neg_array == -9999))] = 0.0
+    upper = threshold_otsu(pos_array)
+    lower = threshold_otsu(neg_array)
+    print("Thresholds determined by Otsu's method: {:.4f}, {:.4f}".format(upper, lower))
+    return upper, lower
+
+
 # https://gis.stackexchange.com/a/177675
 def classify_change(srcimg, pos_thold, neg_thold, outpath):
     """Returns classified image using supplied thresholds
@@ -163,6 +182,9 @@ def getarea(poly):
 
 # --------------------------------[ DATASETS ]--------------------------------------
 
+# Create an output directory if it doesn't exist
+Path('output').mkdir(parents=True, exist_ok=True)
+
 # load the polygon and set CRS to same as the Landsat data
 outline = get_outline(newRed, shapefile)
 
@@ -178,6 +200,7 @@ img2nir = band_clip(oldNIR, 'output\\img2nir.tif')
 outlinearea = getarea(outline).sum()
 print('Study area size: {:.2f} km²'.format(outlinearea))
 print('Study area size (UTM): {:.2f} km²'.format(outline.area[0]/1000000))
+
 
 # --------------------------------[ BAND MATHS ]--------------------------------------
 
@@ -195,7 +218,13 @@ masked_diff = np.ma.masked_where(masked_diff == -9999, masked_diff)
 with rio.open('output\\masked_diff.tif', "w", **mask_meta) as mskdest:
     mskdest.write(masked_diff)
 
-classify_change('output\\masked_diff.tif', 0.3, -0.3, 'output\\classified.tif')
+# if no thresholds are set by myconfig they will be determined using Otsu's method
+if posthresh == 0 and negthresh == 0:
+    posthresh, negthresh = get_threshold('output\\masked_diff.tif')
+else:
+    print('User set thresholds: {}, {}'.format(posthresh, negthresh))
+
+classify_change('output\\masked_diff.tif', posthresh, negthresh, 'output\\classified.tif')
 change_polys = getpolygons('output\\classified.tif')
 pos_change_poly = change_polys[change_polys['raster_val'] == 1]
 neg_change_poly = change_polys[change_polys['raster_val'] == 2]
@@ -225,13 +254,12 @@ plt.title(label=maptitle, size=20, pad=20)
 mycmap = plt.cm.get_cmap("RdYlBu").copy()
 mycmap.set_bad('k', alpha=0)
 
-ax.stock_img()  # displays a (very) low res natural earth background, but slows the plotting significantly
+ax.stock_img()  # displays a (very) low res natural earth background
 
 # display raster
-
 im = ax.imshow(masked_diff[0], cmap=mycmap, vmin=-0.5, vmax=0.5, transform=myCRS, extent=[xmin, xmax, ymin, ymax])
 
-# display poly
+# display polygons
 outline_disp = ShapelyFeature(outline['geometry'], myCRS, edgecolor='r', facecolor='none', linewidth=3.0)
 ax.add_feature(outline_disp)
 
