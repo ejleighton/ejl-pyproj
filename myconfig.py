@@ -9,7 +9,7 @@
 #    oldRed: path and filename for the red band of the older image
 #    oldNIR: path and filename for the NIR band of the older image
 #    shapefile: path and filename for the shapefile containing the study area boundary
-#	 spatialref: spatial reference for analysis in format 'epsg:#####'
+#    spatialref: spatial reference for analysis in format 'epsg:#####'
 #    posthresh, negthresh: positive and negative thresholds to be applied to NDVI difference image to
 #                          determine significant positive or negative change
 
