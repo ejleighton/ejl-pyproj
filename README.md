@@ -42,4 +42,4 @@ To run the script using your own data you will need to create a myconfig.py file
 
 ### 2. Run the script!
 
-Open a command prompt (Windows: **Anaconda Prompt**), navigate to the repository directory, and execute the following: `python ndvidiff.py`. Make sure you are running the script in the correct environment (`conda activate ejlproj`).
+Open a command prompt (Windows: **Anaconda Prompt**), navigate to the repository directory, and execute the following: `python ndvidiff.py`. Make sure you are running the script in the correct environment (e.g. `conda activate ejlproj`).

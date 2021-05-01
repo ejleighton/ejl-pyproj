@@ -21,5 +21,5 @@ oldRed = 'data_files\\CEZ\\LT05_L1TP_182024_19860531_20170217_01_T1_B3.TIF'  # i
 oldNIR = 'data_files\\CEZ\\LT05_L1TP_182024_19860531_20170217_01_T1_B4.TIF'  # image 2 nir
 shapefile = 'data_files\\CEZ\\ExclusionZone.shp'  # shapefile of study area
 spatialref = 'epsg:5577'  # espg for Ukraine 2000 3 Degree GK CM 21E
-posthresh, negthresh = 0.3, -0.3
+posthresh, negthresh = 0.25, -0.25
 savepath = 'CEZ_output' 

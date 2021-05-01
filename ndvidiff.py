@@ -18,7 +18,7 @@ from myconfig import *  # imports variables from configuration file (per https:/
 # --------------------------------[ FUNCTIONS ]--------------------------------------
 
 def get_outline(crs_src, poly):
-    """Returns polygon feature with CRS from a source raster.
+    """Returns polygon feature setting the CRS to the same as the source raster.
 
     :param crs_src: (str) path and filename for the CRS source raster
     :param poly: (str) path and filename for the shapefile
@@ -39,7 +39,7 @@ def getextent(poly):
     """
     # takes bounds from the polygon
     minx, miny, maxx, maxy = poly.total_bounds
-    # calculates 1% of the bounding box
+    # calculates 1% of the bounding box on each axis
     deltax = ((maxx - minx) / 100)
     deltay = ((maxy - miny) / 100)
     # increases the minimum and maximum extent by the calculated amount
@@ -55,6 +55,7 @@ def getextent(poly):
 def band_clip(filepath, outpath):
     """Returns a windowed raster from the given path. Assumes a single band.
     Creates a Geotiff of the resulting image with updated metadata.
+    Uses the extent set from the polygon bounds for the window
 
     :param filepath: (str) the path and filename for the input raster
     :param outpath: (str) the path and filename for the output image
@@ -83,6 +84,7 @@ def calc_ndvi(nir, red):
     """
     nir = nir.astype('float32')
     red = red.astype('float32')
+    # Using 'np.where' avoids divide by zero errors by independently dealing with cases where denominator would be 0
     ndvi = np.where(
         (nir + red) == 0.,
         0,
@@ -101,6 +103,7 @@ def ndvidiff(new, old, outpath):
     :return: (array): raster created subtracting the older image from the new
     """
     diff = (new - old)
+    # here we use the metadata from one of the input images as much of it will be the same as our output
     with rio.open('{}\\img1red.tif'.format(savepath)) as src:
         out_meta = src.meta
     out_meta.update({"driver": "GTiff",
@@ -112,6 +115,8 @@ def ndvidiff(new, old, outpath):
     return diff
 
 
+# As the NDVI difference image can have values from -1.0 to 1.0, the following function creates separate arrays
+# for both positive and negative values before finding a threshold for each
 def get_threshold(srcimg):
     """Returns thresholds for the NDVI differencing image determined by Otsu's method
 
@@ -129,7 +134,8 @@ def get_threshold(srcimg):
     return upper, lower
 
 
-# https://gis.stackexchange.com/a/177675
+# adapted from https://gis.stackexchange.com/a/177675
+# uses np.where to change all array values to arbitrary values representing a class (with the exception of -9999 mask)
 def classify_change(srcimg, pos_thold, neg_thold, outpath):
     """Returns classified image using supplied thresholds
 
@@ -150,7 +156,8 @@ def classify_change(srcimg, pos_thold, neg_thold, outpath):
     return array
 
 
-# https://gis.stackexchange.com/a/187883
+# adapted from https://gis.stackexchange.com/a/187883
+# fixed the issue of crs being 'none' by adding .set_crs before exiting the function
 def getpolygons(srcimg):
     """Returns polygons based on unique values in source raster
 
@@ -165,12 +172,14 @@ def getpolygons(srcimg):
                 for i, (s, v)
                 in enumerate(
                     shapes(image, transform=src.transform)))
+    print('Getting polygons - this may take several minutes')
     geoms = list(results)
     gpd_polygonized_raster = gpd.GeoDataFrame.from_features(geoms)
     gpd_polygonized_raster.set_crs(crs=src.crs, inplace=True)
     return gpd_polygonized_raster
 
 
+# converts polygons to the user set spatial reference system and calculates the area
 def getarea(poly):
     """Returns area of polygons in km². Assumes units of source are metres.
 
@@ -184,55 +193,66 @@ def getarea(poly):
 
 # --------------------------------[ DATASETS ]--------------------------------------
 
-# Create an output directory if it doesn't exist
+# Creates an output directory (as set in config file) if it doesn't exist
 Path(savepath).mkdir(parents=True, exist_ok=True)
 
-# load the polygon and set CRS to same as the Landsat data
+# Load the polygon and set CRS to same as the Landsat data
 outline = get_outline(newRed, shapefile)
 
-# take image bounds from polygon
+# Take image bounds from polygon. Width and height are used later to calculate the aspect ratio for the canvas
 xmin, ymin, xmax, ymax, o_width, o_height = getextent(outline)
 
-# load and clip Landsat data, saves as GeoTiff
+# Load and clip Landsat data to bounds established above, saves as GeoTiff
 img1red = band_clip(newRed, '{}\\img1red.tif'.format(savepath))
 img1nir = band_clip(newNIR, '{}\\img1nir.tif'.format(savepath))
 img2red = band_clip(oldRed, '{}\\img2red.tif'.format(savepath))
 img2nir = band_clip(oldNIR, '{}\\img2nir.tif'.format(savepath))
 
-outlinearea = getarea(outline).sum()
-print('Study area size: {:.2f} km²'.format(outlinearea))
-print('Study area size (UTM): {:.2f} km²'.format(outline.area[0] / 1000000))
+print('Datasets loaded')
+
 
 # --------------------------------[ ANALYSIS ]--------------------------------------
 
+# Creates arrays of NDVI values from the arrays created while clipping the input band images
 ndvi1 = calc_ndvi(img1nir, img1red)
 ndvi2 = calc_ndvi(img2nir, img2red)
 diffimg = ndvidiff(ndvi1, ndvi2, '{}\\ndvidiff.tif'.format(savepath))
 
-# create masked copy of the NDVI difference layer
+# Creates masked copy of the NDVI difference image. This allows further analysis to ignore values outside the
+# study area polygon. Pixels outside the polygon are set to the value -9999 so they can easily be identified
+# and set as 'bad' or out-of-range. The masked array is written as a GeoTiff.
 with rio.open('{}\\ndvidiff.tif'.format(savepath)) as img:
-    # set any pixel outside the 'outline' polygon to a value of -9999
     masked_diff, mask_transform = rmask.mask(img, outline.geometry, nodata=-9999)
     mask_meta = img.meta
-# create a masked array with numpy setting -9999 as a 'bad' or out-of-range value
 masked_diff = np.ma.masked_where(masked_diff == -9999, masked_diff)
 with rio.open('{}\\masked_diff.tif'.format(savepath), "w", **mask_meta) as mskdest:
     mskdest.write(masked_diff)
 
-# if no thresholds are set by myconfig they will be determined using Otsu's method
+# If no thresholds are set by the config file, an upper and lower threshold will be determined using Otsu's method
 if posthresh == 0 and negthresh == 0:
     posthresh, negthresh = get_threshold('{}\\masked_diff.tif'.format(savepath))
 else:
     print('User set thresholds: {}, {}'.format(posthresh, negthresh))
 
+# Classifies the NDVI Differencing layer using numpy to edit the array. This sets all pixel values above the
+# positive threshold to 1, and below the negative threshold (except -9999) to 2. All values in between are set to 0.
 classify_change('{}\\masked_diff.tif'.format(savepath), posthresh, negthresh, '{}\\classified.tif'.format(savepath))
+
+# The classified image is then used to generate polygons for each of the values (0, 1, 2, -9999)
+# The values we want can then be assigned their own variable.
 change_polys = getpolygons('{}\\classified.tif'.format(savepath))
 pos_change_poly = change_polys[change_polys['raster_val'] == 1]
 neg_change_poly = change_polys[change_polys['raster_val'] == 2]
+
+# Calculate areas from polygons and print results.
+outlinearea = getarea(outline).sum()
 pos_change_area = getarea(pos_change_poly).sum()
 neg_change_area = getarea(neg_change_poly).sum()
-print('Area of positive change: {:.2f} km²'.format(pos_change_area))
-print('Area of negative change: {:.2f} km²'.format(neg_change_area))
+print('Got areas:\n'
+      'Study area size: {:.2f} km²\n'
+      'Area of significant positive change: {:.2f} km²\n'
+      'Area of significant negative change: {:.2f} km²\n'
+      .format(outlinearea, pos_change_area, neg_change_area))
 
 # --------------------------------[ PLOTTING ]--------------------------------------
 
@@ -252,16 +272,16 @@ ax.set_extent([xmin, xmax, ymin, ymax], crs=myCRS)
 plt.title(label=maptitle, size=20, pad=20)
 
 # create colormap setting alpha for masked values
-mycmap = plt.cm.get_cmap("RdYlBu").copy()
-mycmap.set_bad('k', alpha=0)
+mycmap = plt.cm.get_cmap("PiYG").copy()
+mycmap.set_bad('k', alpha=0, )
 
 ax.stock_img()  # displays a (very) low res natural earth background
 
-# display raster
-im = ax.imshow(masked_diff[0], cmap=mycmap, vmin=-0.5, vmax=0.5, transform=myCRS, extent=[xmin, xmax, ymin, ymax])
+# display raster of NDVI difference
+im = ax.imshow(masked_diff[0], cmap=mycmap, vmin=-1, vmax=1, transform=myCRS, extent=[xmin, xmax, ymin, ymax])
 
-# display polygons
-outline_style = {'edgecolor': 'r',
+# display polygons and create patches for the legend
+outline_style = {'edgecolor': 'xkcd:azure',
                  'facecolor': 'none',
                  'linewidth': 3.0}
 outline_disp = ShapelyFeature(outline['geometry'], myCRS, **outline_style)
@@ -269,13 +289,13 @@ ax.add_feature(outline_disp)
 outline_patch = mpatches.Patch(label='Area of Interest', **outline_style)
 
 pos_change_style = {'edgecolor': 'none',
-                    'facecolor': 'b'}
+                    'facecolor': 'xkcd:leaf green'}
 pos_change_disp = ShapelyFeature(pos_change_poly['geometry'], myCRS, **pos_change_style)
 ax.add_feature(pos_change_disp)
 pos_change_patch = mpatches.Patch(label='Significant Positive Change', **pos_change_style)
 
 neg_change_style = {'edgecolor': 'none',
-                    'facecolor': 'r'}
+                    'facecolor': 'xkcd:rust'}
 neg_change_disp = ShapelyFeature(neg_change_poly['geometry'], myCRS, **neg_change_style)
 ax.add_feature(neg_change_disp)
 neg_change_patch = mpatches.Patch(label='Significant Negative Change', **neg_change_style)
@@ -286,10 +306,10 @@ gridlines.right_labels = False
 gridlines.bottom_labels = False
 
 # plot legend
-
 plt.legend(handles=[outline_patch, pos_change_patch, neg_change_patch],
            loc='upper left', bbox_to_anchor=(0, 1), bbox_transform=ax.transAxes, borderaxespad=0.1)
 
+# Add a box with the results from the area calculations beneath the map plot
 resultstext = AnchoredText('Study area size: {:.2f} km²\n'
                            'Area of positive change: {:.2f} km²\n'
                            'Area of negative change: {:.2f} km²'
@@ -298,12 +318,12 @@ resultstext = AnchoredText('Study area size: {:.2f} km²\n'
                            borderpad=0, prop=dict(size=12))
 ax.add_artist(resultstext)
 
-# create axes for colorbar plot
+# create axes for colorbar plot and plot colorbar
 divider = make_axes_locatable(ax)
 cax = divider.append_axes("right", size="2.5%", pad=0.1, axes_class=plt.Axes)
+plt.colorbar(im, cax, label='NDVI Difference')
 
-plt.colorbar(im, cax)
-
+# expand the figure beneath the map to make room for the results text
 plt.subplots_adjust(bottom=0.15)
 
 # show the plot
