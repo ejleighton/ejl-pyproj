@@ -24,7 +24,7 @@ The folder installed in step 2 contains an environment.yml file which can be use
 
 Using Anaconda Navigator the environment can easily be imported by going to the **Environments** panel and clicking the **Import** button at the bottom, then navigating to the environment.yml file from the import wizard.
 
-To create the environment from the command line (Windows users should run **Anaconda Prompt** from **Start**), first navigate to the directory you unpacked/cloned the repository to and run: `conda env create -f environment.yml`.
+To create the environment from the command line (Windows users should run **Anaconda Prompt** from the **Start** menu), first navigate to the directory you unpacked/cloned the repository to and run: `conda env create -f environment.yml`.
 
 This will install the following packages and their dependencies:
 
@@ -42,4 +42,4 @@ To run the script using your own data you will need to create a myconfig.py file
 
 ### 2. Run the script!
 
-Open a command prompt (Windows: **Anaconda Prompt**), navigate to the repository directory, and execute the following: `python ndvidiff.py`.
+Open a command prompt (Windows: **Anaconda Prompt**), navigate to the repository directory, and execute the following: `python ndvidiff.py`. Make sure you are running the script in the correct environment (`conda activate ejlproj`).

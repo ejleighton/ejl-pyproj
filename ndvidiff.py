@@ -4,13 +4,15 @@ import cartopy.crs as ccrs
 import matplotlib.pyplot as plt
 import rasterio as rio
 import rasterio.mask as rmask
+from pathlib import Path
 from skimage.filters import threshold_otsu
 from rasterio.features import shapes
+from rasterio.windows import from_bounds  # thanks https://gis.stackexchange.com/a/336903 for pointing this function out
+import matplotlib.patches as mpatches
+from matplotlib.offsetbox import AnchoredText
 from mpl_toolkits.axes_grid1 import make_axes_locatable  # for arranging multiple plots, i.e. colorbar axes
 from cartopy.feature import ShapelyFeature
-from rasterio.windows import from_bounds  # thanks https://gis.stackexchange.com/a/336903 for pointing this function out
 from myconfig import *  # imports variables from configuration file (per https://stackoverflow.com/a/924866)
-from pathlib import Path
 
 
 # --------------------------------[ FUNCTIONS ]--------------------------------------
@@ -82,7 +84,7 @@ def calc_ndvi(nir, red):
     nir = nir.astype('float32')
     red = red.astype('float32')
     ndvi = np.where(
-        (nir+red) == 0.,
+        (nir + red) == 0.,
         0,
         (nir - red) / (nir + red)
     )
@@ -99,7 +101,7 @@ def ndvidiff(new, old, outpath):
     :return: (array): raster created subtracting the older image from the new
     """
     diff = (new - old)
-    with rio.open('output\\img1red.tif') as src:
+    with rio.open('{}\\img1red.tif'.format(savepath)) as src:
         out_meta = src.meta
     out_meta.update({"driver": "GTiff",
                      "height": diff.shape[1],
@@ -183,7 +185,7 @@ def getarea(poly):
 # --------------------------------[ DATASETS ]--------------------------------------
 
 # Create an output directory if it doesn't exist
-Path('output').mkdir(parents=True, exist_ok=True)
+Path(savepath).mkdir(parents=True, exist_ok=True)
 
 # load the polygon and set CRS to same as the Landsat data
 outline = get_outline(newRed, shapefile)
@@ -192,40 +194,39 @@ outline = get_outline(newRed, shapefile)
 xmin, ymin, xmax, ymax, o_width, o_height = getextent(outline)
 
 # load and clip Landsat data, saves as GeoTiff
-img1red = band_clip(newRed, 'output\\img1red.tif')
-img1nir = band_clip(newNIR, 'output\\img1nir.tif')
-img2red = band_clip(oldRed, 'output\\img2red.tif')
-img2nir = band_clip(oldNIR, 'output\\img2nir.tif')
+img1red = band_clip(newRed, '{}\\img1red.tif'.format(savepath))
+img1nir = band_clip(newNIR, '{}\\img1nir.tif'.format(savepath))
+img2red = band_clip(oldRed, '{}\\img2red.tif'.format(savepath))
+img2nir = band_clip(oldNIR, '{}\\img2nir.tif'.format(savepath))
 
 outlinearea = getarea(outline).sum()
 print('Study area size: {:.2f} km²'.format(outlinearea))
-print('Study area size (UTM): {:.2f} km²'.format(outline.area[0]/1000000))
+print('Study area size (UTM): {:.2f} km²'.format(outline.area[0] / 1000000))
 
-
-# --------------------------------[ BAND MATHS ]--------------------------------------
+# --------------------------------[ ANALYSIS ]--------------------------------------
 
 ndvi1 = calc_ndvi(img1nir, img1red)
 ndvi2 = calc_ndvi(img2nir, img2red)
-diffimg = ndvidiff(ndvi1, ndvi2, 'output\\ndvidiff.tif')
+diffimg = ndvidiff(ndvi1, ndvi2, '{}\\ndvidiff.tif'.format(savepath))
 
 # create masked copy of the NDVI difference layer
-with rio.open('output\\ndvidiff.tif') as img:
+with rio.open('{}\\ndvidiff.tif'.format(savepath)) as img:
     # set any pixel outside the 'outline' polygon to a value of -9999
     masked_diff, mask_transform = rmask.mask(img, outline.geometry, nodata=-9999)
     mask_meta = img.meta
 # create a masked array with numpy setting -9999 as a 'bad' or out-of-range value
 masked_diff = np.ma.masked_where(masked_diff == -9999, masked_diff)
-with rio.open('output\\masked_diff.tif', "w", **mask_meta) as mskdest:
+with rio.open('{}\\masked_diff.tif'.format(savepath), "w", **mask_meta) as mskdest:
     mskdest.write(masked_diff)
 
 # if no thresholds are set by myconfig they will be determined using Otsu's method
 if posthresh == 0 and negthresh == 0:
-    posthresh, negthresh = get_threshold('output\\masked_diff.tif')
+    posthresh, negthresh = get_threshold('{}\\masked_diff.tif'.format(savepath))
 else:
     print('User set thresholds: {}, {}'.format(posthresh, negthresh))
 
-classify_change('output\\masked_diff.tif', posthresh, negthresh, 'output\\classified.tif')
-change_polys = getpolygons('output\\classified.tif')
+classify_change('{}\\masked_diff.tif'.format(savepath), posthresh, negthresh, '{}\\classified.tif'.format(savepath))
+change_polys = getpolygons('{}\\classified.tif'.format(savepath))
 pos_change_poly = change_polys[change_polys['raster_val'] == 1]
 neg_change_poly = change_polys[change_polys['raster_val'] == 2]
 pos_change_area = getarea(pos_change_poly).sum()
@@ -260,19 +261,42 @@ ax.stock_img()  # displays a (very) low res natural earth background
 im = ax.imshow(masked_diff[0], cmap=mycmap, vmin=-0.5, vmax=0.5, transform=myCRS, extent=[xmin, xmax, ymin, ymax])
 
 # display polygons
-outline_disp = ShapelyFeature(outline['geometry'], myCRS, edgecolor='r', facecolor='none', linewidth=3.0)
+outline_style = {'edgecolor': 'r',
+                 'facecolor': 'none',
+                 'linewidth': 3.0}
+outline_disp = ShapelyFeature(outline['geometry'], myCRS, **outline_style)
 ax.add_feature(outline_disp)
+outline_patch = mpatches.Patch(label='Area of Interest', **outline_style)
 
-pos_change_disp = ShapelyFeature(pos_change_poly['geometry'], myCRS, edgecolor='none', facecolor='b')
+pos_change_style = {'edgecolor': 'none',
+                    'facecolor': 'b'}
+pos_change_disp = ShapelyFeature(pos_change_poly['geometry'], myCRS, **pos_change_style)
 ax.add_feature(pos_change_disp)
+pos_change_patch = mpatches.Patch(label='Significant Positive Change', **pos_change_style)
 
-neg_change_disp = ShapelyFeature(neg_change_poly['geometry'], myCRS, edgecolor='none', facecolor='r')
+neg_change_style = {'edgecolor': 'none',
+                    'facecolor': 'r'}
+neg_change_disp = ShapelyFeature(neg_change_poly['geometry'], myCRS, **neg_change_style)
 ax.add_feature(neg_change_disp)
+neg_change_patch = mpatches.Patch(label='Significant Negative Change', **neg_change_style)
 
 # plot gridlines with labels on top and left
 gridlines = ax.gridlines(draw_labels=True)
 gridlines.right_labels = False
 gridlines.bottom_labels = False
+
+# plot legend
+
+plt.legend(handles=[outline_patch, pos_change_patch, neg_change_patch],
+           loc='upper left', bbox_to_anchor=(0, 1), bbox_transform=ax.transAxes, borderaxespad=0.1)
+
+resultstext = AnchoredText('Study area size: {:.2f} km²\n'
+                           'Area of positive change: {:.2f} km²\n'
+                           'Area of negative change: {:.2f} km²'
+                           .format(outlinearea, pos_change_area, neg_change_area),
+                           loc='upper right', bbox_to_anchor=(1, -0.02), bbox_transform=ax.transAxes,
+                           borderpad=0, prop=dict(size=12))
+ax.add_artist(resultstext)
 
 # create axes for colorbar plot
 divider = make_axes_locatable(ax)
@@ -280,16 +304,10 @@ cax = divider.append_axes("right", size="2.5%", pad=0.1, axes_class=plt.Axes)
 
 plt.colorbar(im, cax)
 
-plt.figtext(0.1, 0.01, 'Study area size: {:.2f} km²\n'
-                       'Area of positive change: {:.2f} km²\n'
-                       'Area of negative change: {:.2f} km²'
-            .format(outlinearea, pos_change_area, neg_change_area),
-            size=16)
-
 plt.subplots_adjust(bottom=0.15)
 
 # show the plot
 plt.show()
 
 # save the plot
-fig.savefig('output\\test.png', dpi=300, bbox_inches='tight')
+fig.savefig('{}\\ChangeMap.png'.format(savepath), dpi=300, bbox_inches='tight')
