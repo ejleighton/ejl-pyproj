@@ -193,6 +193,8 @@ def getarea(poly):
 
 # --------------------------------[ DATASETS ]--------------------------------------
 
+# The following section uses the data pointed to in myconfig.py
+
 # Creates an output directory (as set in config file) if it doesn't exist
 Path(savepath).mkdir(parents=True, exist_ok=True)
 
@@ -309,7 +311,7 @@ gridlines.bottom_labels = False
 plt.legend(handles=[outline_patch, pos_change_patch, neg_change_patch],
            loc='upper left', bbox_to_anchor=(0, 1), bbox_transform=ax.transAxes, borderaxespad=0.1)
 
-# Add a box with the results from the area calculations beneath the map plot
+# Add a text box with the results from the area calculations beneath the map plot
 resultstext = AnchoredText('Study area size: {:.2f} km²\n'
                            'Area of positive change: {:.2f} km²\n'
                            'Area of negative change: {:.2f} km²'
